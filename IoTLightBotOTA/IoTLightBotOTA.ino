@@ -1,4 +1,4 @@
-#include <ESP8266WebServer.h>
+\#include <ESP8266WebServer.h>
 #include <ESP8266WebServerSecure.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -11,8 +11,8 @@
 #include "FastLED.h"
 
 #ifndef STASSID
-#define STASSID "Robot_House"
-#define STAPSK  "R0botHous3Rule$"
+#define STASSID "Username"
+#define STAPSK  "Password"
 #endif
 
 #define VERSION "1.0.1"

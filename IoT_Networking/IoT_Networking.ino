@@ -18,8 +18,8 @@
 #define SERVER_PORT 8000
 
 //network information
-#define STASSID "Robot_House"
-#define STAPSK  "R0botHous3Rule$"
+#define STASSID "Username"
+#define STAPSK  "Password"
 
 //fastled information
 #define NUM_LEDS 15

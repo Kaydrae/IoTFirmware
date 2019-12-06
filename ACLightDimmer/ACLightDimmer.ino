@@ -5,8 +5,8 @@
 #include <ArduinoOTA.h>
 
 #ifndef STASSID
-#define STASSID "RobotHouse"
-#define STAPSK  "R0botHous3Rule$"
+#define STASSID "Username"
+#define STAPSK  "Password"
 #endif
 
 const char* ssid = STASSID;

@@ -2,12 +2,12 @@
 
 #ifndef CONFIG_DEFAULTS
 //server information
-#define SERVER_HOSTNAME "server.iot.network"
-#define SERVER_PORT 8595
+#define SERVER_HOSTNAME "server.ip"
+#define SERVER_PORT 0
 
 //network information
-#define STASSID "iot_network"
-#define STAPSK  "IoTNetwork$"
+#define STASSID "ssid"
+#define STAPSK  "password"
 
 //led information
 #define NUM_LEDS 15

@@ -169,7 +169,7 @@ void loop()
       Serial.println("Server Command Recieved: '" + line + "'");
 
       //process the command
-      processCommand(line, client);
+      process_command(line, client);
     }
     delay(100);
   }

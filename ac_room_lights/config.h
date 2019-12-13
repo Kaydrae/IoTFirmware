@@ -9,12 +9,11 @@
 #define STASSID "ssid"
 #define STAPSK  "password"
 
-//led information
-#define NUM_LEDS 15
-#define TWO_HUNDRED_PI 628
-
 //size of esp8226 EEPROM
 #define EEPROM_SIZE 4096
+
+//default light brightness
+#define DEFAULT_BRIGHTNESS 255
 
 //the maximum size of strings that can be stored in EEPROM
 #define MAX_STRING_LENGTH 32
@@ -24,14 +23,13 @@
 typedef struct config_data {
   //keeps track of declared costants so if a change is detected it can overwrite the old data with new defaults
   int max_string_length = MAX_STRING_LENGTH;
-  int leds = NUM_LEDS;
+  int brightness = DEFAULT_BRIGHTNESS;
 
   //data to be stored
   char ssid[MAX_STRING_LENGTH];      
   char password[MAX_STRING_LENGTH];
   char host[MAX_STRING_LENGTH];
   uint16_t port;
-  int saved_led_colors[NUM_LEDS];
 };
 
 //Configuration class deffinition
@@ -48,7 +46,7 @@ public:
   uint16_t port = SERVER_PORT;
 
   //led data
-  int led_colors[NUM_LEDS];
+  int brightness = DEFAULT_BRIGHTNESS;
 
   //enable/disable serial debug
   bool debug;
@@ -72,7 +70,7 @@ public:
     put_value(this->password, data.password);
     put_value(this->host, data.host);
     data.port = this->port;
-    memcpy(data.saved_led_colors, this->led_colors, sizeof(this->led_colors));
+    data.brightness = this->brightness;
 
     //serial debug
     if (this->debug) {
@@ -82,7 +80,7 @@ public:
       Serial.print("\tPASSWORD: "); Serial.println(data.password);
       Serial.print("\tHOST: "); Serial.println(data.host);
       Serial.print("\tPORT: "); Serial.println(data.port);
-      Serial.print("\tLED COLORS: [ "); for(int i = 0; i < 15; i++) {Serial.print(String(data.saved_led_colors[i]) + ", ");} Serial.println("end ]");
+      Serial.print("\tBrightness: "); Serial.println(data.brightness);
       Serial.println(">-----");
     }
     
@@ -106,11 +104,6 @@ public:
       if (this->debug) {
         Serial.println("Config Warning: A change in max length of saved strings has been detected. Overwriting previous .");
       }
-
-      //default the LED color to white
-      for (int i = 0; i < NUM_LEDS; i++) {
-        this->led_colors[i] = 16777215;
-      }
       
       //overwrite invalid save using the default config
       this->save();
@@ -122,19 +115,7 @@ public:
     get_value(this->password, data.password);
     get_value(this->host, data.host);
     this->port = data.port;
-
-    //check if the number of LEDS of the device has changed, if so reset the LED settings to default save the new config
-    if (data.leds != NUM_LEDS) {
-      if (this->debug) {
-        Serial.println("Config Warning: A change in the number of device LEDS has been detected. Wiping previous saved LED configuration.");
-      }
-
-      //save the new default led config
-      this->save();
-    } else {
-      //load the LED colors from from flash into memory
-      memcpy(this->led_colors, data.saved_led_colors, sizeof(data.saved_led_colors));
-    }
+    this->brightness = data.brightness;
     
     //serial debug
     if (this->debug) {
@@ -144,7 +125,7 @@ public:
       Serial.print("\tPASSWORD: "); Serial.println(this->password);
       Serial.print("\tHOST: "); Serial.println(this->host);
       Serial.print("\tPORT: "); Serial.println(this->port);
-      Serial.print("\tLED COLORS: [ "); for(int i = 0; i < 15; i++) {Serial.print(String(this->led_colors[i]) + ", ");} Serial.println("end ]");
+      Serial.print("\tBrightness: "); Serial.println(this->brightness);
       Serial.println(">-----");
     }
     

@@ -1,12 +1,13 @@
 #include <ESP8266WiFi.h>
 #include "config.h"
 #include "ota.h"
+#include "hw_timer.h"
 
 #ifndef CONSTS
 //device information
 #define DEVICE_ROOM "robotics_lab"    //the id of room the device is located in
-#define DEVICE_NAME "Template Device" //the name of the device
-#define DEVICE_TYPE "template"        //the type of the device
+#define DEVICE_NAME "AC Room Lights" //the name of the device
+#define DEVICE_TYPE "grayscale_light"        //the type of the device
 #define DEVICE_VERSION "1.0.0"        //version of the device
 #define DEVICE_SPESIFIC "template_data|Hello World"  //device spesific data: converted to json
 
@@ -31,6 +32,18 @@ String device_version = DEVICE_VERSION;
 String device_spesific = DEVICE_SPESIFIC;
 String dilim = DILIM;
 
+//ac light vars
+const byte zcPin = 12;
+const byte pwmPin = 13;  
+
+byte fade = 1;
+byte state = 1;
+byte tarBrightness = 255;
+byte curBrightness = 0;
+byte zcState = 0; // 0 = ready; 1 = processing;
+
+void ICACHE_RAM_ATTR zcDetectISR();
+
 //device config
 Configuration conf(true);
 
@@ -43,6 +56,9 @@ OTA ota;
 
 //takes a command from the server and responds accordingly
 void process_command(String command, WiFiClient & client);
+
+void dimTimerISR();
+void ICACHE_RAM_ATTR zcDetectISR();
 
 /*----------------------------------------
   Arduino Settup and Loop Deffinitions
@@ -67,8 +83,18 @@ void setup()
     delay(100);
   }
 
+  //light settup
+  pinMode(zcPin, INPUT_PULLUP);
+  pinMode(pwmPin, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(zcPin), zcDetectISR, RISING);    // Attach an Interupt to Pin 2 (interupt 0) for Zero Cross Detection
+  hw_timer_init(NMI_SOURCE, 0);
+  hw_timer_set_func(dimTimerISR);
+
   //start the OTA service
   ota.settup(device_name.c_str());
+
+  //set the color of the lights from config
+  tarBrightness = conf.brightness;
 
   Serial.print("WiFi connected with IP: ");
   Serial.println(WiFi.localIP());
@@ -159,6 +185,7 @@ void process_command(String command, WiFiClient & client) {
     client.print("beat");
   }
 
+
   //save the current config of the device to flash
   if(cmd_split[0] == "save") {
     Serial.println("Saving current device config...");
@@ -169,5 +196,58 @@ void process_command(String command, WiFiClient & client) {
   if(cmd_split[0] == "end") {
     Serial.println("Ending connection with the server...");
     client.stop();
+  }
+
+  if(cmd_split[0] == "setbrightness") {
+    Serial.println("Setting the brightness of the device to '" + cmd_split[1] + "'.");
+
+    tarBrightness = cmd_split[1].toInt();
+    conf.brightness = cmd_split[1].toInt();
+  }
+}
+
+void dimTimerISR() {
+    if (fade == 1) {
+      if (curBrightness > tarBrightness || (state == 0 && curBrightness > 0)) {
+        --curBrightness;
+      }
+      else if (curBrightness < tarBrightness && state == 1 && curBrightness < 255) {
+        ++curBrightness;
+      }
+    }
+    else {
+      if (state == 1) {
+        curBrightness = tarBrightness;
+      }
+      else {
+        curBrightness = 0;
+      }
+    }
+    
+    if (curBrightness == 0) {
+      state = 0;
+      digitalWrite(pwmPin, 0);
+    }
+    else if (curBrightness == 255) {
+      state = 1;
+      digitalWrite(pwmPin, 1);
+    }
+    else {
+      digitalWrite(pwmPin, 1);
+    }
+    
+    zcState = 0;
+}
+
+void zcDetectISR() {
+  if (zcState == 0) {
+    zcState = 1;
+  
+    if (curBrightness < 255 && curBrightness > 0) {
+      digitalWrite(pwmPin, 0);
+      
+      int dimDelay = 30 * (255 - curBrightness) + 400;//400
+      hw_timer_arm(dimDelay);
+    }
   }
 }

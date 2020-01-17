@@ -10,12 +10,12 @@ public:
   }
 
   //call to settup OTA
-  void settup(const char * device_name) {
+  void settup(const char * device_uuid) {
     /*
      * Start of ArduinoOTA settup
     */
     //set the name of this device
-    ArduinoOTA.setHostname(device_name);
+    ArduinoOTA.setHostname(device_uuid);
     
     //update start hook for ArduinoOTA
     ArduinoOTA.onStart([]() {

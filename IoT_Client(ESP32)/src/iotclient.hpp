@@ -59,10 +59,13 @@ private:
             Serial.println("UUID:  " + this->uuid);
             Serial.println("type: " + this->type);
             Serial.println("data: " + this->data);
+            
+            uint16_t num_bytes = (this->uuid.length()) + 2*(this->dilim.length()) + (this->type.length()) + (this->data.length());
 
             //send the device info to the server
+            this->client.write(num_bytes);
             this->client.print(this->uuid + this->dilim + this->type + this->dilim + this->data);
-            Serial.println(this->uuid + this->dilim + this->type + this->dilim + this->data);
+            Serial.println(num_bytes + this->dilim + this->uuid + this->dilim + this->type + this->dilim + this->data);
         }
 
         //if the client has recived the heartbeat command
@@ -71,13 +74,15 @@ private:
             Serial.print("<> Responding to Heartbeat Request <>");
 
             //respond so the server keeps the connection alive
-            this->client.print("\x02\xFF");
+            this->client.write((uint16_t)0x0001);
+            this->client.write(commands::heartbeat);
+            Serial.println("\nHeartbeat Message: \x00\x01\x02");
         } 
 
         //if the client has recived the end_connection command
         else if (this->bytes[i] == commands::end_connection)
         {
-            Serial.print("<> Responding to Heartbeat Request <>");
+            Serial.print("<> Responding to End Connection <>");
             //do something on disconnect if you want
         }
     }
@@ -145,8 +150,20 @@ public:
             //once the client is avaliable start processing socket data
             if (this->client.available())
             {
-                //read the buffer into the byte array
-                size_t total = client.readBytesUntil(commands::end_message, this->bytes, 1024);
+                //read in the first two size bytes of the message
+                if (this->client.read(this->bytes, 2) < 2) return;
+
+                //get the total size
+                uint16_t message_size = (uint16_t)(this->bytes[0] << 8 | this->bytes[1]);
+
+                //read in the rest of the message
+                size_t total = client.read(this->bytes, message_size);
+                
+                //if the total message size does not match the actual size, return
+                if (total != message_size) {
+                    Serial.println("<> ERROR: The message size is not correct <>");
+                    return;
+                }
 
                 //if a message was recived then interpret the message
                 if (total > 0)

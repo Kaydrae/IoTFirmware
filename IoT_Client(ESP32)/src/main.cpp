@@ -46,7 +46,7 @@ private:
   };
 
   //array of actions for the device to perform
-  void (iot_light::*actions[NUM_ACTIONS])(uint8_t speed, uint8_t bright, uint32_t color_primary, uint32_t color_secondary);
+  void (iot_light::*actions[NUM_ACTIONS])();
   
   //pointer to array of LEDs
   CRGB* leds;
@@ -63,28 +63,27 @@ public:
   virtual void interpreter(size_t number) override {
     if (this->bytes[0] == light_cmds::LIGHT && number <= 10) {
       Serial.println("<> Running Device Command <>");
-      uint32_t primary_color = (uint32_t)(0x00 << 24 | this->bytes[4] << 16 | this->bytes[5] << 8 | this->bytes[6]);      //set 32-bit primary color (0x00RRGGBB)
-      uint32_t secondary_color = (uint32_t)(0x00 << 24 | this->bytes[7] << 16 | this->bytes[8] << 8 | this->bytes[9]);    //set 32-bit secondary color (0x00RRGGBB)
-
-      Serial.print("Primary Color: "); Serial.println(primary_color);
-      Serial.print("Secondary Color: "); Serial.println(secondary_color);
 
       //call the function corresponding to the action the server has called, pass in speed, brightness, primary color, secondary color
-      (this->*(actions[this->bytes[1]]))(this->bytes[2], this->bytes[3], primary_color, secondary_color);
+      (this->*(actions[this->bytes[1]]))();
     }
   }
 
   //function for static solid color
-  void static_single_color(uint8_t speed, uint8_t bright, uint32_t color_primary, uint32_t color_secondary) {
-    FastLED.setBrightness(bright);
+  void static_single_color() {
+    //set 32-bit primary color (0x00RRGGBB)
+    uint32_t primary_color = (uint32_t)(0x00 << 24 | this->bytes[4] << 16 | this->bytes[5] << 8 | this->bytes[6]);
+    
+    FastLED.setBrightness(this->bytes[3]);  //set the brightness of the LEDs
+
     for (size_t i = 0; i < NUM_LEDS; i++) {
-      leds[i] = color_primary;
+      leds[i] = primary_color;
     }
     FastLED.show();
   }
 
   //function for pulsing at a single color
-  void single_color_pulse(uint8_t speed, uint8_t bright, uint32_t color_primary, uint32_t color_secondary) {
+  void single_color_pulse() {
     return;
   }
 

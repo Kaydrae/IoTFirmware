@@ -1,93 +1,107 @@
-// /*
-//  * This is the program for running an IoT light client. It manages the connection to the network and server, as well as interprets light
-//  * commands. Below is the communication structure:
-//  *                    Byte 0    Byte 1   Byte 2   Byte 3        Byte 4              Byte 5                Byte 6              Byte 7                Byte 8                  Byte 9
-//  * Byte Structure: [comm type] [action] [speed] [brightness] [primary color red] [primary color green] [primary color blue] [secondary color red] [secondary color green] [secondary color blue]
-//  * Where:
-//  * "action" is a number (between 0 and NUM_ACTIONS-1) that indicates the function to call
-//  * "speed" is a number (0-255) that indicates movement speed of light effects
-//  * "brightness" is a number (0-255) indicating brightness of the lights
-//  * "primary color" is the bytes representing the primary color of the LEDs (split into three bytes: r, g, b)
-//  * "secondary color" is the bytes representing the secondary color of the LEDs (split into three bytes: r, g, b)
-//  * 
-//  */ 
+/*
+ * This is the program for running an IoT lock client. It runs the locks (setting and resetting them as well as manages conenctions to
+ * to the server). Below is the communication structure:
+ *                    Byte 0    Byte 1
+ * Byte Structure: [comm type] [action] 
+ * Where:
+ *  comm type = the type of communication being sent (i.e. lock-specific commmunication)
+ *  action = the action to perform with the lock (set/reset)
+ * 
+ */ 
 
-// //make sure programmer is using ESP32 or ESP8266
+//make sure programmer is using ESP32 or ESP8266
 #if !defined(ESP32) && !defined(ESP9266)
 #error "ERROR: Not using ESP32 or ESP8266"
 #endif
+
+// #include <EEPROM.h> 
+
+// typedef struct {
+//   char temp[32] = "aaaaaa";
+// } TEST;
+
+// void setup() {
+//   Serial.begin(9600);
+//   EEPROM.begin(512);
+
+//   TEST data;
+//   for (size_t i = 0; i < 5; i++) {
+//     data.temp[i] = 'b';
+//   }
+
+//   Serial.println("<> Writing to EEPROM <>");
+//   EEPROM.put(0, data);
+//   EEPROM.commit();
+//   Serial.println("<> Reading from EEPROM <>");
+//   TEST read_in;
+//   Serial.println(read_in.temp);
+//   EEPROM.get(0, read_in);
+//   Serial.println(read_in.temp);
+// }
+
+// void loop() {
+
+// }
 
 #include "configurationmanager.hpp"
 #include "iotclient.hpp"
 #include "ota.hpp"
 #include "memorymanager.hpp"
 
-#include "FastLED.h"
-
 //ignore GCC warning about const char* to String conversion
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 
-#define TYPE "rgb_light"
-#define NUM_LEDS 15
-#define LED_PIN 4
+#define TYPE "lock"
 #define INT_PIN 2
 
 /*
   classes
-*/
-#define NUM_ACTIONS 4     // Change to be the number of actions you want the device to perform
+*/ 
+#define NUM_ACTIONS 2     // Change to be the number of actions you want the device to perform
+#define LOCK_PIN 14
 
 //iotclient class for server communication
-class iot_light : public iotclient {
+class iot_lock : public iotclient {
 private:
   //enum for specific communication types
-  enum light_cmds{
-    LIGHT = B01100100
+  enum lock_cmds{
+    LOCK = B01100100
   };
 
   //array of actions for the device to perform
-  void (iot_light::*actions[NUM_ACTIONS])();
-  
-  //pointer to array of LEDs
-  CRGB* leds;
+  void (iot_lock::*actions[NUM_ACTIONS])();
 
 public:
   //constructor
-  iot_light(CRGB* _leds): leds(_leds) {
+  iot_lock() {
     /* Set the actions array to correspond to functions to perform actions */
-    this->actions[0] = &iot_light::static_single_color;     //static single color function
-    this->actions[1] = &iot_light::single_color_pulse;      //single color pulse function
+    this->actions[0] = &iot_lock::reset_lock;   //function to reset the lock
+    this->actions[1] = &iot_lock::set_lock;     //function for setting the lock
+    pinMode(LOCK_PIN, OUTPUT);
   }
 
   //override of interpreter function from 
   virtual void interpreter(size_t number) override {
-    if (this->bytes[0] == light_cmds::LIGHT && number <= 10) {
+    if (this->bytes[0] == lock_cmds::LOCK && number <= 2) {
       Serial.println("<> Running Device Command <>");
 
-      //call the function corresponding to the action the server has called, pass in speed, brightness, primary color, secondary color
+      //call the function corresponding to the action the server has called
       (this->*(actions[this->bytes[1]]))();
     }
   }
 
-  //function for static solid color
-  void static_single_color() {
-    //set 32-bit primary color (0x00RRGGBB)
-    uint32_t primary_color = (uint32_t)(0x00 << 24 | this->bytes[4] << 16 | this->bytes[5] << 8 | this->bytes[6]);
-    
-    FastLED.setBrightness(this->bytes[3]);  //set the brightness of the LEDs
-
-    for (size_t i = 0; i < NUM_LEDS; i++) {
-      leds[i] = primary_color;
-    }
-    FastLED.show();
+  //function to close the lock
+  void set_lock() {
+    digitalWrite(LOCK_PIN, LOW);
   }
 
-  //function for pulsing at a single color
-  void single_color_pulse() {
-    return;
+  //function to open lock
+  void reset_lock() {
+    digitalWrite(LOCK_PIN, HIGH);
   }
 
 };
+
 
 //ota class for simple OTA
 OTA updater;
@@ -95,11 +109,8 @@ OTA updater;
 //memory manager class
 memorymanager memory;
 
-//leds
-CRGB leds[NUM_LEDS];
-
 //led light client
-iot_light light_client(leds);
+iot_lock lock_client;
 
 /* Functions */
 
@@ -109,11 +120,10 @@ void clear_mem();
 //function for successful network connection
 void connection_success();
 
-void test();
-
 //function for failed network connection
 void connection_fail();
-int x = 8;
+
+char* default_check = "default";
 
 //setup
 void setup()
@@ -140,16 +150,8 @@ void setup()
 #endif
   }
 
-  pinMode(LED_PIN, OUTPUT);
-  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
-
-  // memory.write();
-  memory.generate_uuid();
-
-  memory.read();  // Read network configuration
-
   // Setup data with the client device
-  light_client.setdata(memory.config.HOST, &(memory.config.PORT), memory.config.UUID, TYPE, memory.config.DATA);
+  lock_client.setdata(memory.config.HOST, &(memory.config.PORT), memory.config.UUID, TYPE, memory.config.DATA);
 
   Serial.print("SSID: ");
   Serial.println(memory.config.SSID);
@@ -186,28 +188,18 @@ void loop()
   }
 
   //handle the light client
-  light_client.handle();
+  lock_client.handle();
 
   //handle OTA
   updater.handle();
 }
 
 void connection_success() {
-  for (size_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CRGB::Green;
-  }
-  FastLED.show();
+  Serial.println("Connection successful!");
 }
 
 void connection_fail() {
-  for (size_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CRGB::Red;
-  }
-  FastLED.show();
-}
-
-void test() {
-  Serial.println(x);
+  Serial.println("Connection failed!");
 }
 
 // ISR to clear memory
